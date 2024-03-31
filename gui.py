@@ -2,7 +2,9 @@
 from PyQt5.QtCore import pyqtSlot, QSettings, QTimer, QUrl, Qt
 from PyQt5.QtGui import QCloseEvent
 from PyQt5.QtWidgets import QMainWindow, QMessageBox, QDockWidget, QPlainTextEdit, QTabWidget
-from PyQt5.QtWebKitWidgets import QWebView, QWebPage
+from PyQt5.QtWebEngineWidgets import QWebEngineView as QWebView, QWebEnginePage as QWebPage
+from PyQt5.QtWebEngineCore import QWebEngineUrlRequestInterceptor
+from PyQt5.QtWebEngineWidgets import QWebEngineProfile
 
 from logger import log
 
@@ -42,15 +44,17 @@ class CustomWebView(QWebView):
 
         log("connecting on close and linkclicked signal")
         self.loadedPage = self.page()
-        self.loadedPage.setLinkDelegationPolicy(QWebPage.DelegateAllLinks)
+        interceptor = MyUrlRequestInterceptor()
+        profile = QWebEngineProfile.defaultProfile()
+        profile.setUrlRequestInterceptor(interceptor)
         self.loadedPage.windowCloseRequested.connect(self.close)
-        self.loadedPage.linkClicked.connect(self.handlelink)
+        self.loadedPage.urlChanged.connect(self.handlelink)
         self.setWindowTitle(self.title())
         if not self.main:
             self.parent.tabs.setTabText(self.tabIndex, self.title())
         if not ok:
             QMessageBox.information(self, "Error", "Error loading page!", QMessageBox.Ok)
-
+            
     @pyqtSlot(QUrl)
     def handlelink(self, url):
         urlstr = url.toString()
@@ -100,7 +104,12 @@ class CustomWebView(QWebView):
                 self.parent.windows.remove(self)
             log("Window count: %s" % (len(self.parent.windows)+1))
         event.accept()
-
+        
+class MyUrlRequestInterceptor(QWebEngineUrlRequestInterceptor):
+    def interceptRequest(self, info):
+        url = info.requestUrl()
+        if url.scheme() != 'file':
+            info.block(True)
 
 class MainWindow(QMainWindow):
 
